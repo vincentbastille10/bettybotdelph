@@ -1,26 +1,16 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import os
 import json
-from groq import Groq
+import openai
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement
 load_dotenv()
 
-# Initialisation de Flask
-app = Flask(__name__)
-CORS(app)
+# Initialiser OpenRouter (Claude 3)
+openai.api_key = os.getenv("OPENROUTER_API_KEY")
+openai.api_base = "https://openrouter.ai/api/v1"
 
-# Récupération de la clé API Groq
-groq_api_key = os.getenv("GROQ_API_KEY")
-if not groq_api_key:
-    raise ValueError("GROQ_API_KEY est manquant dans les variables d'environnement.")
-
-# Initialiser le client Groq
-client = Groq(api_key=groq_api_key)
-
-# Charger la base FAQ locale si disponible
+# Charger la base FAQ locale
 FAQ_PATH = "data/faq_danse.json"
 try:
     with open(FAQ_PATH, "r", encoding="utf-8") as f:
@@ -28,7 +18,7 @@ try:
 except FileNotFoundError:
     faq_data = []
 
-# Indexation pour recherche rapide
+# Index pour recherche rapide
 faq_index = {
     item["question"].lower(): item["answer"]
     for item in faq_data
@@ -36,7 +26,7 @@ faq_index = {
 }
 
 def chercher_reponse_locale(question):
-    """Tente de répondre en local à partir de la FAQ"""
+    """Cherche une réponse dans la FAQ locale."""
     question = question.lower()
     for q, a in faq_index.items():
         if q in question or question in q:
@@ -44,13 +34,14 @@ def chercher_reponse_locale(question):
     return None
 
 def get_bot_response(user_input):
-    """Fournit une réponse, d'abord via la FAQ locale, sinon via Groq"""
+    """Renvoie une réponse à partir de la FAQ ou via OpenRouter."""
     reponse_locale = chercher_reponse_locale(user_input)
     if reponse_locale:
         return reponse_locale
 
     try:
-        chat_completion = client.chat.completions.create(
+        chat_completion = openai.ChatCompletion.create(
+            model="anthropic/claude-3-sonnet-20240229",
             messages=[
                 {
                     "role": "system",
@@ -79,24 +70,10 @@ def get_bot_response(user_input):
                 },
                 {"role": "user", "content": user_input}
             ],
-            model="llama3-8b-8192",
-            temperature=0.4
+            temperature=0.4,
+            max_tokens=400
         )
-        return chat_completion.choices[0].message.content
+        return chat_completion['choices'][0]['message']['content'].strip()
 
     except Exception as e:
         return f"Désolée, je rencontre un souci pour répondre. N’hésite pas à réessayer bientôt. (Erreur : {str(e)})"
-
-@app.route("/ask", methods=["POST"])
-def ask():
-    data = request.get_json()
-    user_input = data.get("message", "")
-    if not user_input:
-        return jsonify({"error": "Message vide"}), 400
-    response = get_bot_response(user_input)
-    return jsonify({"response": response})
-
-# Point de départ de l’application
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Render définit PORT automatiquement
-    app.run(host="0.0.0.0", port=port)

@@ -1,24 +1,37 @@
-from flask import Flask, render_template, request, jsonify
-from chatbot_core import get_bot_response
+from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask_cors import CORS
 import os
+from dotenv import load_dotenv
+from chatbot_core import get_bot_response
 
-# Initialisation de Flask
-app = Flask(__name__, static_folder='static', template_folder='static')
+# Charger les variables d'environnement
+load_dotenv()
 
-# Route principale : sert la page HTML
+app = Flask(__name__, static_folder="static")
+CORS(app)
+
 @app.route("/")
-def home():
+def index():
     return render_template("widget.html")
 
-# Route API : récupère les requêtes utilisateur
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json()
-    question = data.get("question", "")
-    response = get_bot_response(question)
-    return jsonify({"response": response})
+    user_message = data.get("question", "")
 
-# Lancement du serveur
+    if not user_message:
+        return jsonify({"error": "Message utilisateur manquant."}), 400
+
+    try:
+        bot_response = get_bot_response(user_message)
+        return jsonify({"response": bot_response})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/static/<path:filename>")
+def static_files(filename):
+    return send_from_directory("static", filename)
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Render définit la variable PORT
-    app.run(host="0.0.0.0", port=port, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
