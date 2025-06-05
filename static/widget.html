@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Betty - Chatbot Danse</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: #fdf7f9;
+      font-family: "Helvetica Neue", sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .chatbox {
+      width: 100%;
+      max-width: 500px;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+
+    .message {
+      margin-bottom: 15px;
+    }
+
+    .user, .bot {
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    .user {
+      background: #e0f7fa;
+      text-align: right;
+    }
+
+    .bot {
+      background: #f3e5f5;
+      text-align: left;
+    }
+
+    .input-container {
+      display: flex;
+      margin-top: 15px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      font-size: 1em;
+    }
+
+    button {
+      background: #ff69b4;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      margin-left: 10px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    #avatar {
+      width: 80px;
+      height: auto;
+      margin-bottom: 10px;
+    }
+
+    #thinking {
+      display: none;
+      font-style: italic;
+      color: #999;
+      margin-top: 10px;
+    }
+
+    @keyframes dots {
+      0% { content: ""; }
+      33% { content: "."; }
+      66% { content: ".."; }
+      100% { content: "..."; }
+    }
+
+    .dots::after {
+      content: "...";
+      animation: dots 1.2s infinite steps(3, end);
+    }
+  </style>
+</head>
+<body>
+
+  <img id="avatar" src="/static/images/betty_pirouette.gif" alt="Betty fait une pirouette !">
+
+  <div class="chatbox" id="chatbox">
+    <div class="message bot">
+      Bonjour ! Je suis <strong>Betty</strong>, l'assistante du Centre de Danse Delphine Letort 💃 Que puis-je faire pour vous ?
+    </div>
+  </div>
+
+  <div class="input-container">
+    <input type="text" id="user-input" placeholder="Écrivez votre message ici...">
+    <button onclick="sendMessage()">Envoyer</button>
+  </div>
+
+  <div id="thinking">Betty réfléchit <span class="dots"></span></div>
+
+  <script>
+    function appendMessage(text, sender) {
+      const msg = document.createElement("div");
+      msg.className = `message ${sender}`;
+      msg.textContent = text;
+      document.getElementById("chatbox").appendChild(msg);
+      msg.scrollIntoView({ behavior: "smooth" });
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("user-input");
+      const text = input.value.trim();
+      if (!text) return;
+
+      appendMessage(text, "user");
+      input.value = "";
+      document.getElementById("thinking").style.display = "block";
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: text })
+        });
+
+        const data = await res.json();
+        document.getElementById("thinking").style.display = "none";
+        appendMessage(data.response, "bot");
+      } catch (err) {
+        document.getElementById("thinking").style.display = "none";
+        appendMessage("Désolée, je ne peux pas répondre pour le moment 😔", "bot");
+      }
+    }
+
+    document.getElementById("user-input").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") sendMessage();
+    });
+  </script>
+
+</body>
+</html>
