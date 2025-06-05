@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 # Charger les variables d'environnement
 load_dotenv()
 
-# Initialiser OpenRouter (Claude 3)
+# Initialiser OpenRouter avec Claude 3
 openai.api_key = os.getenv("OPENROUTER_API_KEY")
 openai.api_base = "https://openrouter.ai/api/v1"
 
@@ -18,7 +18,7 @@ try:
 except FileNotFoundError:
     faq_data = []
 
-# Index pour recherche rapide
+# Index rapide des questions/réponses
 faq_index = {
     item["question"].lower(): item["answer"]
     for item in faq_data
@@ -34,11 +34,22 @@ def chercher_reponse_locale(question):
     return None
 
 def get_bot_response(user_input):
-    """Renvoie une réponse à partir de la FAQ ou via OpenRouter."""
+    """Renvoie une réponse à partir de la FAQ ou via Claude 3."""
+
+    # 🎭 Si on parle de spectacle/gala
+    mots_cles_spectacle = ["spectacle", "gala", "représentation", "scène", "show", "représente"]
+    if any(mot in user_input.lower() for mot in mots_cles_spectacle):
+        return (
+            "Oui, le gala approche ! 🎭 Vous pouvez dès maintenant réserver vos places ici :\n"
+            "[Acheter une place](https://www.helloasso.com/associations/steps/evenements/gala-2025)"
+        )
+
+    # 🤖 Tentative de réponse locale (FAQ)
     reponse_locale = chercher_reponse_locale(user_input)
     if reponse_locale:
         return reponse_locale
 
+    # 🧠 Sinon, passer par Claude 3 (OpenRouter)
     try:
         chat_completion = openai.ChatCompletion.create(
             model="anthropic/claude-3-sonnet-20240229",
