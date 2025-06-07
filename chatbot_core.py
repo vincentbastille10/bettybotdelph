@@ -1,16 +1,17 @@
 import os
 import json
+from flask import Flask, request, jsonify, make_response
 import openai
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement
+# Charger variables d'environnement depuis .env
 load_dotenv()
 
-# Initialiser OpenRouter avec Claude 3
 openai.api_key = os.getenv("OPENROUTER_API_KEY")
 openai.api_base = "https://openrouter.ai/api/v1"
 
-# Charger la base FAQ locale
+app = Flask(__name__)
+
 FAQ_PATH = "data/faq_danse.json"
 try:
     with open(FAQ_PATH, "r", encoding="utf-8") as f:
@@ -18,7 +19,6 @@ try:
 except FileNotFoundError:
     faq_data = []
 
-# Index rapide des questions/réponses
 faq_index = {
     item["question"].lower(): item["answer"]
     for item in faq_data
@@ -26,30 +26,33 @@ faq_index = {
 }
 
 def chercher_reponse_locale(question):
-    """Cherche une réponse dans la FAQ locale."""
     question = question.lower()
     for q, a in faq_index.items():
         if q in question or question in q:
             return a
     return None
 
-def get_bot_response(user_input):
-    """Renvoie une réponse à partir de la FAQ ou via Claude 3."""
+@app.route("/bot", methods=["POST"])
+def bot():
+    data = request.json
+    user_input = data.get("message", "").strip()
 
-    # 🎭 Si on parle de spectacle/gala
+    # Réponse spécifique gala avec lien HTML cliquable
     mots_cles_spectacle = ["spectacle", "gala", "représentation", "scène", "show", "représente"]
     if any(mot in user_input.lower() for mot in mots_cles_spectacle):
-        return (
-            "Oui, le gala approche ! 🎭 Vous pouvez dès maintenant réserver vos places ici :\n"
-            "[Acheter une place](https://www.helloasso.com/associations/steps/evenements/gala-2025)"
+        html_response = (
+            "Oui, le gala approche ! 🎭 Vous pouvez dès maintenant réserver vos places ici : "
+            "<a href='https://www.helloasso.com/associations/steps/evenements/gala-2025' target='_blank' rel='noopener noreferrer'>Acheter une place</a>"
         )
+        return make_response(html_response, 200, {"Content-Type": "text/html"})
 
-    # 🤖 Tentative de réponse locale (FAQ)
+    # Réponse FAQ locale
     reponse_locale = chercher_reponse_locale(user_input)
     if reponse_locale:
-        return reponse_locale
+        # Retourner texte brut (ou enrichi en HTML si besoin)
+        return make_response(reponse_locale, 200, {"Content-Type": "text/html"})
 
-    # 🧠 Sinon, passer par Claude 3 (OpenRouter)
+    # Sinon requête vers Claude 3 via OpenRouter
     try:
         chat_completion = openai.ChatCompletion.create(
             model="anthropic/claude-3-sonnet-20240229",
@@ -68,9 +71,9 @@ def get_bot_response(user_input):
                         "- Les autres cours incluent : soul jazz, jazz new school, technique création, breakdance dès 8 ans, street ados/adultes.\n"
                         "- Le centre propose aussi un cours de sophrologie animé par Marie OLICHET (06 69 16 13 50).\n"
                         "- Si tu n’es pas certaine d’une réponse, propose gentiment un lien :\n"
-                        "  [Consulter le planning](https://www.dansedelphineletort.com/cours)\n"
-                        "  [Voir les tarifs](https://www.dansedelphineletort.com/tarifs)\n"
-                        "- Contact : [06 63 11 15 75](tel:0663111575) / [contactdelphineletort@gmail.com](mailto:contactdelphineletort@gmail.com)\n"
+                        "  <a href='https://www.dansedelphineletort.com/cours' target='_blank' rel='noopener noreferrer'>Consulter le planning</a>\n"
+                        "  <a href='https://www.dansedelphineletort.com/tarifs' target='_blank' rel='noopener noreferrer'>Voir les tarifs</a>\n"
+                        "- Contact : <a href='tel:0663111575'>06 63 11 15 75</a> / <a href='mailto:contactdelphineletort@gmail.com'>contactdelphineletort@gmail.com</a>\n"
                         "- Adresse du studio : 53 avenue Bollée, Le Mans.\n"
                         "Important :\n"
                         "- Ne pas répéter l’introduction à chaque réponse.\n"
@@ -84,7 +87,16 @@ def get_bot_response(user_input):
             temperature=0.4,
             max_tokens=400
         )
-        return chat_completion['choices'][0]['message']['content'].strip()
+        reponse = chat_completion['choices'][0]['message']['content'].strip()
+        # On retourne la réponse brute, qui peut contenir du HTML (assure-toi que la réponse ne contient rien de dangereux)
+        return make_response(reponse, 200, {"Content-Type": "text/html"})
 
     except Exception as e:
-        return f"Désolée, je rencontre un souci pour répondre. N’hésite pas à réessayer bientôt. (Erreur : {str(e)})"
+        error_msg = (
+            f"Désolée, je rencontre un souci pour répondre. N’hésite pas à réessayer bientôt. "
+            f"(Erreur : {str(e)})"
+        )
+        return make_response(error_msg, 200, {"Content-Type": "text/html"})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
