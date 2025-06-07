@@ -34,14 +34,14 @@ def chercher_reponse_locale(question):
     return None
 
 def get_bot_response(user_input):
-    """Renvoie une réponse à partir de la FAQ ou via Claude 3."""
+    """Renvoie une réponse à partir de la FAQ ou via Claude 3, avec liens HTML cliquables."""
 
     # 🎭 Si on parle de spectacle/gala
     mots_cles_spectacle = ["spectacle", "gala", "représentation", "scène", "show", "représente"]
     if any(mot in user_input.lower() for mot in mots_cles_spectacle):
         return (
-            "Oui, le gala approche ! 🎭 Vous pouvez dès maintenant réserver vos places ici :\n"
-            "[Acheter une place](https://www.helloasso.com/associations/steps/evenements/gala-2025)"
+            "Oui, le gala approche ! 🎭 Vous pouvez dès maintenant réserver vos places ici :<br>"
+            '<a href="https://www.helloasso.com/associations/steps/evenements/gala-2025" target="_blank" rel="noopener noreferrer">Acheter une place</a>'
         )
 
     # 🤖 Tentative de réponse locale (FAQ)
@@ -67,10 +67,10 @@ def get_bot_response(user_input):
                         "- Il n’y a aucune limite d’âge supérieure pour s’inscrire.\n"
                         "- Les autres cours incluent : soul jazz, jazz new school, technique création, breakdance dès 8 ans, street ados/adultes.\n"
                         "- Le centre propose aussi un cours de sophrologie animé par Marie OLICHET (06 69 16 13 50).\n"
-                        "- Si tu n’es pas certaine d’une réponse, propose gentiment un lien :\n"
-                        "  [Consulter le planning](https://www.dansedelphineletort.com/cours)\n"
-                        "  [Voir les tarifs](https://www.dansedelphineletort.com/tarifs)\n"
-                        "- Contact : [06 63 11 15 75](tel:0663111575) / [contactdelphineletort@gmail.com](mailto:contactdelphineletort@gmail.com)\n"
+                        "- Si tu n’es pas certaine d’une réponse, propose gentiment un lien :<br>"
+                        '  <a href="https://www.dansedelphineletort.com/cours" target="_blank" rel="noopener noreferrer">Consulter le planning</a><br>'
+                        '  <a href="https://www.dansedelphineletort.com/tarifs" target="_blank" rel="noopener noreferrer">Voir les tarifs</a><br>'
+                        "- Contact : <a href=\"tel:0663111575\">06 63 11 15 75</a> / <a href=\"mailto:contactdelphineletort@gmail.com\">contactdelphineletort@gmail.com</a><br>"
                         "- Adresse du studio : 53 avenue Bollée, Le Mans.\n"
                         "Important :\n"
                         "- Ne pas répéter l’introduction à chaque réponse.\n"
