@@ -82,7 +82,7 @@ def get_bot_response(user_input):
                 {"role": "user", "content": user_input}
             ],
             temperature=0.4,
-            max_tokens=200
+            max_tokens=150
         )
         return chat_completion['choices'][0]['message']['content'].strip()
 
