@@ -2,148 +2,128 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Betty – Chatbot Danse</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root{
-      --bg:#fdf7f9;
-      --bot:#f3e5f5;
-      --user:#e0f7fa;
-      --card:#ffffff;
-      --text:#1b1b1b;
-      --pink:#ff69b4;
-      --shadow:0 10px 30px rgba(0,0,0,.08);
-      --radius:20px;
+      --bg:#fdf7f9; --bubble-user:#e8f6fb; --bubble-bot:#f1dff1;
+      --ink:#2b2240; --btn:#ff6fae; --btn-ink:#fff;
     }
     *{box-sizing:border-box}
     body{
-      margin:0;
-      background:var(--bg);
-      color:var(--text);
-      font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      display:flex; flex-direction:column; align-items:center;
-      padding:28px 16px 28px;
+      background:var(--bg); font-family: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+      margin:0; padding:24px; color:var(--ink); display:flex; flex-direction:column; align-items:center;
     }
-    .wrap{ width:100%; max-width:900px; display:flex; justify-content:center; }
-    .card{
-      width:100%; max-width:680px; background:var(--card); border-radius:var(--radius);
-      box-shadow:var(--shadow); padding:22px;
+    .chatbox{
+      width:100%; max-width:720px; background:#fff; border-radius:24px;
+      box-shadow:0 8px 28px rgba(0,0,0,.08); padding:24px; min-height:340px;
     }
-    .hero{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
-    .hero img{ width:80px; height:auto }
-    .title{
-      background:var(--bot); border-radius:16px; padding:16px; font-size:18px; font-weight:600;
+    .head{
+      display:flex; align-items:center; gap:12px; margin-bottom:10px;
     }
-    .chat{ display:flex; flex-direction:column; gap:12px; margin:14px 0 16px; max-height:60vh; overflow:auto; padding-right:4px }
-    .msg{ padding:12px 14px; border-radius:14px; max-width:85%; white-space:pre-wrap; word-wrap:break-word }
-    .msg a{ color:#0a58ca; text-decoration:underline; }
-    .bot{ background:var(--bot); align-self:flex-start }
-    .user{ background:var(--user); align-self:flex-end; text-align:right }
-    .typing{ opacity:.7; font-style:italic }
-    .row{ display:flex; gap:10px }
-    .row input{
-      flex:1; background:#fff; border:1px solid #e4e4e7; border-radius:12px; padding:14px 12px; font-size:16px;
-      outline:none; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;
+    .head img{ width:70px; height:auto }
+    .msg{ margin:14px 0 }
+    .bubble{
+      display:inline-block; padding:16px 18px; border-radius:18px; line-height:1.5; font-size:18px;
+      box-shadow:0 2px 10px rgba(0,0,0,.05);
     }
-    .row button{
-      background:var(--pink); color:#fff; border:0; border-radius:12px; padding:0 18px; min-width:110px;
-      font-weight:600; cursor:pointer; transition:transform .05s ease;
+    .user{ background:var(--bubble-user); float:right; clear:both }
+    .bot{ background:var(--bubble-bot); float:left; clear:both }
+    .field{ display:flex; gap:12px; margin-top:14px; align-items:center; clear:both }
+    input[type=text]{
+      flex:1; font-size:18px; padding:14px 16px; border-radius:14px; border:1px solid #d9d9e3; outline:none;
     }
-    .row button:active{ transform:translateY(1px) }
-    @media (max-width:520px){
-      .card{ padding:16px }
-      .title{ font-size:16px }
-      .row input{ padding:12px }
-      .row button{ min-width:92px }
+    button{
+      background:var(--btn); color:var(--btn-ink); border:none; border-radius:14px; padding:12px 18px; font-size:16px;
+      cursor:pointer;
     }
+    .thinking{ color:#7a708c; font-style:italic; margin-top:6px; display:none }
+    .thinking .dots::after{ content:"…"; animation:dots 1.2s steps(3,end) infinite }
+    @keyframes dots{0%{content:""}33%{content:"."}66%{content:".."}100%{content:"..."}}
+    a{ color:#4a2bb8; text-decoration:underline }
   </style>
 </head>
 <body>
 
-  <div class="wrap">
-    <div class="card">
-      <div class="hero">
-        <img src="/static/images/betty_pirouette.gif" alt="Betty fait une pirouette !">
-      </div>
-
-      <div class="title">
-        Bonjour ! Je suis <b>Betty</b>, l’assistante du Centre de Danse Delphine Letort 💃 Que puis-je faire pour vous ?
-      </div>
-
-      <div id="chat" class="chat"></div>
-
-      <div class="row">
-        <input id="msg" type="text" placeholder="Écrivez votre message ici…" autocomplete="off" />
-        <button id="send">Envoyer</button>
+  <div class="chatbox" id="chat">
+    <div class="head">
+      <img src="/static/images/betty_pirouette.gif" alt="Betty fait une pirouette !" />
+      <div>
+        <div class="bubble bot">
+          Bonjour ! Je suis <strong>Betty</strong>, l’assistante du Centre de Danse Delphine Letort 💃<br />
+          Que puis-je faire pour vous ?
+        </div>
       </div>
     </div>
+
+    <div id="messages"></div>
+
+    <div class="field">
+      <input id="user-input" type="text" placeholder="Écrivez votre message ici…" autocomplete="off" />
+      <button id="send-btn">Envoyer</button>
+    </div>
+
+    <div class="thinking" id="thinking">Betty réfléchit <span class="dots"></span></div>
   </div>
 
   <script>
-    const chat  = document.getElementById('chat');
-    const input = document.getElementById('msg');
-    const send  = document.getElementById('send');
+    const $msgs = document.getElementById('messages');
+    const $input = document.getElementById('user-input');
+    const $send = document.getElementById('send-btn');
+    const $thinking = document.getElementById('thinking');
 
-    // message d’accueil dans le flux
-    addMsg("Que puis-je faire pour vous ?", "bot");
+    function esc(t){ return t.replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])) }
 
-    function addMsg(text, who){
-      const div = document.createElement('div');
-      div.className = `msg ${who}`;
-
-      if (who === 'bot') {
-        // transforme [texte](url) -> <a href="url">texte</a> pour des liens cliquables
-        const html = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-          '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-        div.innerHTML = html;
-      } else {
-        div.textContent = text;
-      }
-
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-      return div;
+    // Convertit [texte](https://url) en lien <a target="_blank">
+    function linkify(md){
+      return md.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m,txt,href)=>{
+        try{
+          const u = new URL(href);
+          if(!/^https?:$/.test(u.protocol)) return esc(txt); // refuse tout sauf http(s)
+          return `<a href="${u.href}" target="_blank" rel="noopener">${esc(txt)}</a>`;
+        }catch{ return esc(txt); }
+      });
     }
 
-    function setTyping(on){
-      if (on){
-        window._typing = addMsg("Betty réfléchit…", "bot typing");
-      } else if (window._typing){
-        window._typing.remove();
-        window._typing = null;
-      }
+    function append(type, text){
+      const d = document.createElement('div');
+      d.className = 'msg';
+      const b = document.createElement('div');
+      b.className = `bubble ${type}`;
+      // On échappe tout puis on remet uniquement des liens MD → HTML sûrs
+      b.innerHTML = linkify(esc(text));
+      d.appendChild(b);
+      $msgs.appendChild(d);
+      b.scrollIntoView({behavior:'smooth', block:'end'});
     }
 
-    async function ask(){
-      const text = (input.value || "").trim();
-      if (!text) return;
-      addMsg(text, "user");
-      input.value = "";
-      setTyping(true);
-
+    async function sendMessage(){
+      const t = $input.value.trim();
+      if(!t) return;
+      append('user', t);
+      $input.value = '';
+      $thinking.style.display = 'block';
       try{
-        const r = await fetch("/chat", {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ message: text })
+        const res = await fetch('/chat', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ question: t })
         });
-        const j = await r.json();
-        setTyping(false);
-
-        if (j.reply){
-          addMsg(j.reply, "bot");
-        } else {
-          addMsg("Oups : " + (j.error || "erreur inconnue"), "bot");
+        const data = await res.json();
+        $thinking.style.display = 'none';
+        if(data.reply){
+          append('bot', data.reply);
+        }else{
+          append('bot', "Désolée, je ne peux pas répondre pour le moment 😔");
         }
       }catch(e){
-        setTyping(false);
-        addMsg("Désolée, je ne peux pas répondre pour le moment 😔", "bot");
+        $thinking.style.display = 'none';
+        append('bot', "Oups, petite panne réseau. Réessayez dans un instant 🙏");
       }
     }
 
-    send.addEventListener('click', ask);
-    input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') ask(); });
-    window.addEventListener('load', ()=> input.focus());
+    $send.addEventListener('click', sendMessage);
+    $input.addEventListener('keydown', e => { if(e.key==='Enter') sendMessage(); });
   </script>
 </body>
 </html>
