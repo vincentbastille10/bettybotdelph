@@ -1,114 +1,180 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Betty - Chatbot Danse</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Betty – Chatbot Danse</title>
   <style>
-    body {
-      background: #fdf7f9;
-      font-family: "Helvetica Neue", sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
+    :root{
+      --bg:#fdf7f9;
+      --bot:#f3e5f5;
+      --user:#e0f7fa;
+      --card:#ffffff;
+      --text:#1b1b1b;
+      --brand:#3b82f6; /* bleu bulle */
+      --pink:#ff69b4;
+      --muted:#8a8a8a;
+      --shadow:0 10px 30px rgba(0,0,0,.08);
+      --radius:20px;
     }
-    .chatbox {
-      width: 100%;
-      max-width: 500px;
-      background: #fff;
-      border-radius: 20px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-      padding: 20px;
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      display:flex; flex-direction:column; align-items:center;
+      padding:28px 16px 120px;
     }
-    .message { margin-bottom: 15px; }
-    .user, .bot { padding: 12px; border-radius: 12px; white-space: pre-wrap; }
-    .user { background: #e0f7fa; text-align: right; }
-    .bot  { background: #f3e5f5; text-align: left; }
-    .input-container { display: flex; margin-top: 15px; width: 100%; max-width: 500px; }
-    input[type="text"] {
-      flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 12px; font-size: 1em;
+    .wrap{
+      width:100%; max-width:900px;
+      display:flex; justify-content:center;
     }
-    button {
-      background: #ff69b4; color: white; border: none; padding: 10px 16px;
-      margin-left: 10px; border-radius: 12px; cursor: pointer;
+    .card{
+      width:100%; max-width:680px;
+      background:var(--card); border-radius:var(--radius);
+      box-shadow:var(--shadow); padding:22px;
     }
-    #avatar { width: 80px; height: auto; margin-bottom: 10px; }
-    #thinking { display: none; font-style: italic; color: #999; margin-top: 10px; }
-    @keyframes dots { 0%{content:""} 33%{content:"."} 66%{content:".."} 100%{content:"..."} }
-    .dots::after { content:"..."; animation: dots 1.2s infinite steps(3,end); }
+    .hero{
+      display:flex; align-items:center; gap:12px; margin-bottom:10px;
+    }
+    .hero img{width:80px; height:auto}
+    .title{
+      background:var(--bot); border-radius:16px; padding:16px; font-size:18px; font-weight:600;
+    }
+    .chat{display:flex; flex-direction:column; gap:12px; margin:14px 0 16px; max-height:60vh; overflow:auto; padding-right:4px}
+    .msg{padding:12px 14px; border-radius:14px; max-width:85%; white-space:pre-wrap; word-wrap:break-word}
+    .bot{background:var(--bot); align-self:flex-start}
+    .user{background:var(--user); align-self:flex-end; text-align:right}
+    .typing{opacity:.7; font-style:italic}
+    .row{display:flex; gap:10px}
+    .row input{
+      flex:1; background:#fff; border:1px solid #e4e4e7; border-radius:12px; padding:14px 12px; font-size:16px;
+      outline:none; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;
+    }
+    .row button{
+      background:var(--pink); color:#fff; border:0; border-radius:12px; padding:0 18px; min-width:110px;
+      font-weight:600; cursor:pointer; transition:transform .05s ease;
+    }
+    .row button:active{transform:translateY(1px)}
+    /* bulle bleue d'inscription */
+    .cta{
+      position:fixed; right:18px; bottom:18px; z-index:50;
+      display:flex; align-items:center; gap:10px;
+    }
+    .cta a{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:56px; height:56px; border-radius:999px; background:var(--brand); color:#fff;
+      text-decoration:none; box-shadow:0 8px 20px rgba(59,130,246,.35); font-size:26px;
+    }
+    .cta .hint{
+      background:#fff; border:1px solid #e6e8ef; color:#0f172a;
+      padding:10px 12px; border-radius:12px; box-shadow:var(--shadow); font-size:14px;
+    }
+    /* petits écrans */
+    @media (max-width:520px){
+      .card{padding:16px}
+      .title{font-size:16px}
+      .row input{padding:12px}
+      .row button{min-width:92px}
+    }
   </style>
 </head>
 <body>
 
-  <img id="avatar" src="/static/images/betty_pirouette.gif" alt="Betty fait une pirouette !">
+  <div class="wrap">
+    <div class="card">
+      <div class="hero">
+        <img src="/static/images/betty_pirouette.gif" alt="Betty fait une pirouette !">
+      </div>
 
-  <div class="chatbox" id="chatbox">
-    <div class="message bot">
-      Bonjour ! Je suis <strong>Betty</strong>, l'assistante du Centre de Danse Delphine Letort 💃 Que puis-je faire pour vous ?
+      <div class="title">
+        Bonjour ! Je suis <b>Betty</b>, l’assistante du Centre de Danse Delphine Letort 💃 Que puis-je faire pour vous ?
+      </div>
+
+      <div id="chat" class="chat"></div>
+
+      <div class="row">
+        <input id="msg" type="text" placeholder="Écrivez votre message ici…" autocomplete="off" />
+        <button id="send">Envoyer</button>
+      </div>
     </div>
   </div>
 
-  <div class="input-container">
-    <input type="text" id="user-input" placeholder="Écrivez votre message ici..." autocomplete="off">
-    <button id="send-btn">Envoyer</button>
+  <!-- Bulle bleue d'inscription -->
+  <div class="cta" aria-live="polite">
+    <div class="hint" id="cta-hint">Besoin de vous inscrire ?</div>
+    <a id="cta-link" href="https://www.dansedelphineletort.com/" target="_blank" aria-label="S’inscrire (bulle bleue)">➜</a>
   </div>
 
-  <div id="thinking">Betty réfléchit <span class="dots"></span></div>
-
   <script>
-    const chatbox = document.getElementById("chatbox");
-    const input   = document.getElementById("user-input");
-    const sendBtn = document.getElementById("send-btn");
-    const thinking = document.getElementById("thinking");
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('msg');
+    const send  = document.getElementById('send');
+    const ctaHint = document.getElementById('cta-hint');
+    const ctaLink = document.getElementById('cta-link');
 
-    function appendMessage(text, sender) {
-      const msg = document.createElement("div");
-      msg.className = `message ${sender}`;
-      msg.textContent = text;
-      chatbox.appendChild(msg);
-      msg.scrollIntoView({ behavior: "smooth" });
-      return msg;
+    // message d’accueil dans le flux
+    addMsg("Que puis-je faire pour vous ?", "bot");
+
+    function addMsg(text, who){
+      const div = document.createElement('div');
+      div.className = `msg ${who}`;
+      // les réponses de Betty peuvent contenir des liens HTML
+      if (who === 'bot') div.innerHTML = text;
+      else div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      return div;
     }
 
-    async function sendMessage() {
-      const text = input.value.trim();
-      if (!text) return;
-
-      appendMessage(text, "user");
-      input.value = "";
-      const wait = appendMessage("…", "bot");
-      thinking.style.display = "block";
-
-      try {
-        const res = await fetch("/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          // ⬇⬇ IMPORTANT : l’API attend la clé "message"
-          body: JSON.stringify({ message: text })
-        });
-
-        const data = await res.json();
-        thinking.style.display = "none";
-        wait.remove();
-
-        if (data.reply) {
-          appendMessage(data.reply, "bot");
-        } else if (data.error) {
-          appendMessage("Oups : " + data.error, "bot");
-        } else {
-          appendMessage("Réponse inattendue du serveur.", "bot");
-        }
-      } catch (err) {
-        thinking.style.display = "none";
-        wait.remove();
-        appendMessage("Désolée, je ne peux pas répondre pour le moment 😔", "bot");
+    function setTyping(on){
+      if (on){
+        window._typing = addMsg("Betty réfléchit…", "bot typing");
+      } else if (window._typing){
+        window._typing.remove();
+        window._typing = null;
       }
     }
 
-    sendBtn.addEventListener("click", sendMessage);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
-  </script>
+    async function ask(){
+      const text = (input.value || "").trim();
+      if (!text) return;
+      addMsg(text, "user");
+      input.value = "";
+      setTyping(true);
 
+      try{
+        const r = await fetch("/chat", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ message: text }) // clé attendue par l’API
+        });
+        const j = await r.json();
+        setTyping(false);
+
+        if (j.reply){
+          addMsg(j.reply, "bot");
+          // si la réponse contient un lien, on rend visible une courte aide côté bulle
+          if (j.reply.includes("http")) {
+            ctaHint.textContent = "Lien utile envoyé ↑";
+          } else {
+            ctaHint.textContent = "Besoin de vous inscrire ?";
+          }
+        } else {
+          addMsg("Oups : " + (j.error || "erreur inconnue"), "bot");
+        }
+      }catch(e){
+        setTyping(false);
+        addMsg("Désolée, je ne peux pas répondre pour le moment 😔", "bot");
+      }
+    }
+
+    send.addEventListener('click', ask);
+    input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') ask(); });
+
+    // accessibilité : focus input au chargement
+    window.addEventListener('load', ()=> input.focus());
+  </script>
 </body>
 </html>
