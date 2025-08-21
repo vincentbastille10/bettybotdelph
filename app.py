@@ -3,8 +3,10 @@ import openai
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 
-# ----- ENV -----
+# Charger les variables d’environnement
 load_dotenv()
+
+# --- Détection Provider ---
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
 
@@ -19,41 +21,37 @@ elif OPENROUTER_KEY:
     PROVIDER = "OpenRouter"
     MODEL_ID = os.getenv("MODEL_ID", "openai/gpt-4o-mini")
 else:
-    raise ValueError("Aucune clé API (OPENAI_API_KEY ou OPENROUTER_API_KEY)")
+    raise ValueError("❌ Aucune clé API trouvée (OPENAI_API_KEY ou OPENROUTER_API_KEY)")
 
-# ----- Flask -----
+# --- Flask ---
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# Page d’accueil = UI du chat
 @app.route("/")
 def home():
-    return render_template("index.html", provider=PROVIDER, model=MODEL_ID)
-
-# API chat (POST)
-def _call_model(model: str, user_message: str) -> str:
-    resp = openai.ChatCompletion.create(
-        model=model,
-        messages=[{"role": "user", "content": user_message}],
-        max_tokens=300,
-        temperature=0.4,
-    )
-    return resp["choices"][0]["message"]["content"].strip()
+    return render_template("widget.html")  # ton interface de chat
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json(force=True) or {}
-    text = (data.get("message") or data.get("text") or data.get("content") or data.get("prompt") or "").strip()
-    if not text:
-        return jsonify({"error": "Message manquant"}), 400
+    data = request.get_json(force=True)
+    user_msg = (data.get("message") or "").strip()
+    if not user_msg:
+        return jsonify({"error": "Message vide"}), 400
+
     try:
-        reply = _call_model(MODEL_ID, text)
+        resp = openai.ChatCompletion.create(
+            model=MODEL_ID,
+            messages=[{"role": "user", "content": user_msg}],
+            max_tokens=400,
+            temperature=0.4
+        )
+        reply = resp["choices"][0]["message"]["content"].strip()
         return jsonify({"reply": reply})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route("/healthz")
 def healthz():
-    return "OK", 200
+    return f"Flask OK — Provider: {PROVIDER} — Model: {MODEL_ID}", 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
