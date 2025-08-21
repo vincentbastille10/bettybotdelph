@@ -1,4 +1,4 @@
-# app.py — Betty robuste (typos, Petit Rat, 1 lien max, bulle Wix, réponses rapides)
+# app.py — Betty robuste (réponses rapides étendues, typos, Petit Rat, 1 lien max, bulle Wix, relance non systématique)
 
 import os, json, re, textwrap, unicodedata
 import openai
@@ -6,12 +6,11 @@ from flask import Flask, request, jsonify, render_template, session
 from dotenv import load_dotenv
 
 # =========================
-# ENV & Provider (openai==0.28 compatible)
+# ENV & Provider (openai==0.28)
 # =========================
 load_dotenv()
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
-# Par défaut, on cible OpenRouter avec un petit modèle rapide
 MODEL_ID = os.getenv("MODEL_ID", "openai/gpt-4o-mini")
 
 if OPENAI_KEY:
@@ -29,12 +28,12 @@ else:
 BASE = "https://www.dansedelphineletort.com"
 URLS = {
     "accueil": f"{BASE}/",
-    "planning": f"{BASE}/cours",   # Le planning est présenté sur /cours
+    "planning": f"{BASE}/cours",   # le planning est présenté sur /cours
     "tarifs": f"{BASE}/tarifs",
     "cours": f"{BASE}/cours",
     "contact": f"{BASE}/contact",
     "stages": f"{BASE}/stages",
-    "plan": f"{BASE}/contact",     # Ajuste si tu as une page d'accès dédiée
+    "plan": f"{BASE}/contact",     # ajuste si tu as une page d'accès dédiée
     "galerie": f"{BASE}/galerie" if True else f"{BASE}/",
 }
 
@@ -42,7 +41,7 @@ URLS = {
 # FAQ locale (optionnelle)
 # =========================
 FAQ_PATH = os.getenv("FAQ_PATH", "data/faq_danse.json")
-def load_faq():
+def load_faq() -> str:
     try:
         with open(FAQ_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -102,8 +101,9 @@ def fuzzy_has(text: str, keywords: list[str], threshold: float = 0.45) -> bool:
             return True
     return False
 
+# Triggers
 CLOTHES_TERMS = [
-    "tenue", "tenues", "vetement", "vêtement", "vêtements", "habit", "habits", "habiys",
+    "tenue", "tenues", "vetement", "vêtement", "vêtements", "habit", "habits", "habiys", "veteman",
     "chaussure", "chaussures", "pointes", "demi pointes", "demi-pointes", "demipointes",
     "justaucorps", "collants", "cache coeur", "cache-cœur", "boutique", "magasin",
     "petit rat", "p tit rat", "ptit rat", "p'tit rat"
@@ -139,7 +139,7 @@ Cours:
 Règles:
 - **1 seul lien** cliquable par message (format [texte](url)).
 - Si la demande est floue, pose une courte question.
-- Termine souvent par « Souhaitez-vous en savoir plus ? ».
+- La relance « Souhaitez-vous en savoir plus ? » doit rester occasionnelle (pas systématique).
 - Objectif discret: aider à se projeter et à s’inscrire (ton doux, sans forcer).
 """).strip()
 
@@ -162,7 +162,6 @@ INTENT_MAP = [
     (re.compile(r"\b(galerie|photos?|vid[ée]os?)\b", re.I),
      ("Voir la galerie", "galerie")),
 ]
-
 def choose_link(user_text: str) -> tuple[str, str] | None:
     for rgx, (anchor, key) in INTENT_MAP:
         if rgx.search(user_text):
@@ -170,25 +169,32 @@ def choose_link(user_text: str) -> tuple[str, str] | None:
     return None
 
 # =========================
-# Réponses rapides (messages très courts)
+# Réponses rapides (mots très courts & typos)
 # =========================
 COURSE_FAST = [
     ("jazz", "Oui, nous proposons des cours de jazz : Soul Jazz, Jazz New School et Lyrical Jazz (enfants, ados, adultes)."),
     ("classique", "Oui, nous proposons la danse classique dès 6 ans (chignon, justaucorps, collants; demi-pointes, pointes selon le niveau)."),
     ("éveil", "Oui, le cours d’éveil à la danse (dès 3 ans) est animé par Marie le samedi matin."),
     ("eveil", "Oui, le cours d’éveil à la danse (dès 3 ans) est animé par Marie le samedi matin."),
-    ("street", "Oui, nous proposons du street (ados/adultes)."),
-    ("break", "Oui, nous proposons du breakdance dès 8 ans."),
     ("lyrical", "Oui, nous proposons du lyrical jazz (ados/adultes)."),
-    ("soul", "Oui, nous proposons du soul jazz."),
-    ("sophro", "Oui, nous proposons aussi la sophrologie (Marie OLICHET : 06 69 16 13 50)."),
-    ("barre", "Oui, un cours de barre au sol doux et renforçant est proposé pour les adultes."),
+    ("street", "Oui, nous proposons du street (ados/adultes)."),
+    ("hip hop", "Nous proposons du **street** (proche du hip-hop) pour ados/adultes."),
+    ("hiphop", "Nous proposons du **street** (proche du hip-hop) pour ados/adultes."),
+    ("break", "Oui, nous proposons du breakdance dès 8 ans."),
+    ("ados", "Oui, il existe des cours pour ados (street, jazz new school, lyrical, etc.)."),
+    ("adultes", "Oui, il existe des cours adultes (street, jazz, lyrical, …)."),
+    ("débutant", "Oui, les **débutants** sont bienvenus : on vous oriente vers un cours adapté."),
+    ("debutant", "Oui, les **débutants** sont bienvenus : on vous oriente vers un cours adapté."),
+    ("tarifs", "Voici les informations de tarifs."),
+    ("planning", "Voici le planning des cours."),
+    ("adresse", "Le studio est au **53 avenue Bollée, Le Mans**."),
+    ("contact", "Contact : 06 63 11 15 75 • contactdelphineletort@gmail.com"),
+    # “barre au sol” → on ne promet pas un cours non listé, on oriente poliment
+    ("barre", "Je vérifie la disponibilité d’un cours de type **barre au sol** au planning."),
 ]
-
 def quick_course_answer(user_text: str) -> str | None:
     t = norm(user_text)
-    if not t:
-        return None
+    if not t: return None
 
     # Inscription directe → bulle Wix
     if fuzzy_has(t, INSCRIPTION_TERMS, threshold=0.40):
@@ -198,32 +204,49 @@ def quick_course_answer(user_text: str) -> str | None:
     if fuzzy_has(t, CLOTHES_TERMS, threshold=0.40):
         return f"{PETIT_RAT_BLURB}\n\n[Découvrir les cours]({URLS['cours']})"
 
-    # Cours (mots très courts)
+    # Âges clés
+    if re.search(r"\b3\s*ans\b", t):
+        return "Dès **3 ans**, l’**éveil** à la danse est animé par Marie le samedi matin.\n\n[Voir le planning]({})".format(URLS["planning"])
+    if re.search(r"\b6\s*ans\b", t):
+        return "Dès **6 ans**, on peut commencer la **danse classique** avec Delphine.\n\n[Voir le planning]({})".format(URLS["planning"])
+
+    # Mots très courts (synonymes, fautes courantes)
     for kw, sentence in COURSE_FAST:
         if fuzzy_has(t, [kw], threshold=0.40):
+            # ancre par défaut pour ces cas
+            if kw in ("tarifs",):
+                return f"{sentence}\n\n[Consulter les tarifs]({URLS['tarifs']})"
+            if kw in ("planning", "adresse"):
+                key = "plan" if kw == "adresse" else "planning"
+                anchor = "Plan d’accès" if kw == "adresse" else "Voir le planning"
+                return f"{sentence}\n\n[{anchor}]({URLS[key]})"
+            if kw in ("contact",):
+                return f"{sentence}\n\n[Nous contacter]({URLS['contact']})"
             return f"{sentence}\n\n[Voir le planning]({URLS['planning']})"
 
     return None
 
 # =========================
-# Helpers sortie
+# Helpers de sortie
 # =========================
 def first_clickable_link_only(text: str) -> str:
     links = list(re.finditer(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", text))
-    if not links:
-        return text
+    if not links: return text
     out = text[:links[0].end()]
     idx = links[0].end()
     for m in links[1:]:
-        out += text[idx:m.start()] + m.group(1)
+        out += text[idx:m.start()] + m.group(1)  # garde l'ancre, retire l'URL
         idx = m.end()
     out += text[idx:]
     return out
 
-def add_more_prompt(text: str) -> str:
+def add_more_prompt(text: str, q_count: int) -> str:
+    """Relance NON systématique : 1 fois sur 3, seulement si la réponse ne finit pas déjà par une question."""
     if re.search(r"en savoir plus\s*\?", text, re.I):
         return text
-    return f"{text}\n\nSouhaitez-vous en savoir plus ?"
+    if q_count % 3 == 0 and not text.strip().endswith("?"):
+        return f"{text}\n\nSouhaitez-vous en savoir plus ?"
+    return text
 
 def add_petit_rat_if_relevant(text: str, user_text: str) -> str:
     if fuzzy_has(user_text, CLOTHES_TERMS) and "Petit Rat" not in text:
@@ -261,7 +284,6 @@ def extract_user_text(payload: dict) -> str:
     return ""
 
 def call_model(user_text: str) -> str:
-    # openai==0.28
     resp = openai.ChatCompletion.create(
         model=MODEL_ID,
         temperature=0.35,
@@ -281,11 +303,11 @@ def chat():
         if not user_text:
             return jsonify({"error":"Message manquant"}), 400
 
-        # compteur questions → rappel bulle toutes les 2
+        # compteur questions → sert aux relances/nudges
         q = int(session.get("q_count", 0)) + 1
         session["q_count"] = q
 
-        # 0) Réponse rapide sur mots courts (ex: "jazz")
+        # 0) Réponses rapides (mots courts, typos, synonymes)
         reply = quick_course_answer(user_text)
         if reply is None:
             # 1) Réponse modèle
@@ -305,10 +327,10 @@ def chat():
         # 4) Un seul lien max
         reply = first_clickable_link_only(reply)
 
-        # 5) “En savoir plus ?”
-        reply = add_more_prompt(reply)
+        # 5) Relance non systématique
+        reply = add_more_prompt(reply, q)
 
-        # 6) Bulle d’inscription Wix
+        # 6) Bulle Wix (immédiate si inscription; rappel toutes les 2 questions)
         reply = bulle_cta(reply, user_text, force=fuzzy_has(user_text, INSCRIPTION_TERMS))
         if q % 2 == 0:
             reply = bulle_cta(reply, user_text, force=True)
