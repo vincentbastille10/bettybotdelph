@@ -1,4 +1,4 @@
-# app.py — Betty (typos + Petit Rat + bulle bleue)
+# app.py — Betty robuste (typos, Petit Rat, 1 lien max, bulle Wix, réponses rapides)
 
 import os, json, re, textwrap, unicodedata
 import openai
@@ -6,11 +6,12 @@ from flask import Flask, request, jsonify, render_template, session
 from dotenv import load_dotenv
 
 # =========================
-# ENV & Provider
+# ENV & Provider (openai==0.28 compatible)
 # =========================
 load_dotenv()
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
+# Par défaut, on cible OpenRouter avec un petit modèle rapide
 MODEL_ID = os.getenv("MODEL_ID", "openai/gpt-4o-mini")
 
 if OPENAI_KEY:
@@ -20,7 +21,7 @@ elif OPENROUTER_KEY:
     openai.api_key = OPENROUTER_KEY
     openai.api_base = "https://openrouter.ai/api/v1"
 else:
-    raise ValueError("Aucune clé API (OPENAI_API_KEY ou OPENROUTER_API_KEY).")
+    raise ValueError("Aucune clé API trouvée (OPENAI_API_KEY ou OPENROUTER_API_KEY).")
 
 # =========================
 # URLs du site
@@ -28,17 +29,17 @@ else:
 BASE = "https://www.dansedelphineletort.com"
 URLS = {
     "accueil": f"{BASE}/",
-    "planning": f"{BASE}/cours",
+    "planning": f"{BASE}/cours",   # Le planning est présenté sur /cours
     "tarifs": f"{BASE}/tarifs",
     "cours": f"{BASE}/cours",
     "contact": f"{BASE}/contact",
     "stages": f"{BASE}/stages",
-    "plan": f"{BASE}/contact",   # ajuste si page dédiée
+    "plan": f"{BASE}/contact",     # Ajuste si tu as une page d'accès dédiée
     "galerie": f"{BASE}/galerie" if True else f"{BASE}/",
 }
 
 # =========================
-# FAQ locale (facultatif)
+# FAQ locale (optionnelle)
 # =========================
 FAQ_PATH = os.getenv("FAQ_PATH", "data/faq_danse.json")
 def load_faq():
@@ -57,18 +58,18 @@ def load_faq():
 KNOWLEDGE = load_faq()
 
 # =========================
-# Petit Rat
+# Petit Rat (magasin)
 # =========================
 PETIT_RAT_ADDR = "53 avenue Bollée, Le Mans"
 PETIT_RAT_BLURB = (
     "Pour l’équipement, la boutique **Petit Rat** ({addr}). "
     "Vous y trouverez **toutes les tailles** en **pointes** et **demi-pointes**, "
     "**collants**, **justaucorps**, **tuniques**, **jupes**, **cache-cœur**, **pédilles**, "
-    "**accessoires** et **sacs** — y compris des **marques de danse** reconnues (ex. **Repetto**)."
+    "**accessoires** et **sacs** — avec des **marques de danse** reconnues (ex. **Repetto**)."
 ).format(addr=PETIT_RAT_ADDR)
 
 # -------------------------
-# Normalisation & Fuzzy
+# Normalisation & fuzzy-match (typos)
 # -------------------------
 def norm(s: str) -> str:
     s = unicodedata.normalize("NFD", s)
@@ -83,7 +84,6 @@ def trigrams(s: str) -> set:
     return {s[i:i+3] for i in range(len(s)-2)}
 
 def similar(a: str, b: str) -> float:
-    """Jaccard sur trigrammes (léger mais robuste aux typos)."""
     A, B = trigrams(a), trigrams(b)
     if not A or not B: return 0.0
     return len(A & B) / len(A | B)
@@ -95,26 +95,22 @@ def fuzzy_has(text: str, keywords: list[str], threshold: float = 0.45) -> bool:
         k = norm(kw)
         if k in t:
             return True
-        # check par mot
         for w in words:
             if similar(w, k) >= threshold:
                 return True
-        # check global
         if similar(t, k) >= threshold:
             return True
     return False
 
-# Triggers tenues/chaussures/boutique (+ fautes courantes)
 CLOTHES_TERMS = [
-    "tenue", "tenues", "vetement", "vêtement", "vêtements", "habit", "habits", "habiys", "habiy",
+    "tenue", "tenues", "vetement", "vêtement", "vêtements", "habit", "habits", "habiys",
     "chaussure", "chaussures", "pointes", "demi pointes", "demi-pointes", "demipointes",
-    "justaucorps", "collants", "cache coeur", "cache-cœur", "cache coeur",
-    "boutique", "magasin", "petit rat", "p tit rat", "ptit rat", "p'tit rat"
+    "justaucorps", "collants", "cache coeur", "cache-cœur", "boutique", "magasin",
+    "petit rat", "p tit rat", "ptit rat", "p'tit rat"
 ]
-
 INSCRIPTION_TERMS = [
     "inscription", "s inscrire", "inscrire", "m inscrire", "je veux m inscrire",
-    "ok", "d accord", "d’accord", "oui", "let s go", "go"
+    "ok", "d accord", "d’accord", "oui"
 ]
 
 # =========================
@@ -122,7 +118,7 @@ INSCRIPTION_TERMS = [
 # =========================
 SYSTEM_PROMPT = textwrap.dedent(f"""
 Tu es **Betty**, l’assistante du Centre de Danse Delphine Letort.
-Style: chaleureuse, bienveillante, précise et naturelle. **Ne parle jamais d’IA/LLM/OpenAI**.
+Style: chaleureuse, bienveillante, précise, naturelle. **Ne parle jamais d’IA/LLM/OpenAI**.
 
 Infos utiles (résumé):
 {KNOWLEDGE}
@@ -136,22 +132,22 @@ Cours:
 - Studio : 53 avenue Bollée, Le Mans.
 
 Équipement & Boutique:
-- Tenues: justaucorps, collants, cache-cœur/tunique/jupe; chaussures: demi-pointes, pointes si niveau approprié.
-- Oriente vers la boutique locale « Petit Rat » (53 avenue Bollée) pour tailles, conseils et accessoires (ex. Repetto).
+- Tenues: justaucorps, collants, cache-cœur/tunique/jupe; chaussures: demi-pointes, pointes si niveau adapté.
+- Oriente vers la boutique « Petit Rat » (53 avenue Bollée) pour tailles, conseils, accessoires (ex. Repetto).
 - Ne donne pas de prix; renvoie au magasin.
 
 Règles:
 - **1 seul lien** cliquable par message (format [texte](url)).
 - Si la demande est floue, pose une courte question.
 - Termine souvent par « Souhaitez-vous en savoir plus ? ».
-- Objectif discret: aider la personne à se projeter et à s’inscrire (ton doux, sans forcer).
+- Objectif discret: aider à se projeter et à s’inscrire (ton doux, sans forcer).
 """).strip()
 
 # =========================
-# Intent routing -> 1 lien
+# Intent → 1 lien pertinent
 # =========================
 INTENT_MAP = [
-    (re.compile(r"\b(horaires?|heures?|jours?|planning|disponibilit|quand|créneau|creneau)\b", re.I),
+    (re.compile(r"\b(horaires?|heures?|jours?|planning|disponibilit|quand|cr[eé]neau|creneau)\b", re.I),
      ("Voir le planning", "planning")),
     (re.compile(r"\b(tarif|prix|co[uû]t|payer|adh[ée]sion|inscription)\b", re.I),
      ("Consulter les tarifs", "tarifs")),
@@ -174,7 +170,43 @@ def choose_link(user_text: str) -> tuple[str, str] | None:
     return None
 
 # =========================
-# Helpers de sortie
+# Réponses rapides (messages très courts)
+# =========================
+COURSE_FAST = [
+    ("jazz", "Oui, nous proposons des cours de jazz : Soul Jazz, Jazz New School et Lyrical Jazz (enfants, ados, adultes)."),
+    ("classique", "Oui, nous proposons la danse classique dès 6 ans (chignon, justaucorps, collants; demi-pointes, pointes selon le niveau)."),
+    ("éveil", "Oui, le cours d’éveil à la danse (dès 3 ans) est animé par Marie le samedi matin."),
+    ("eveil", "Oui, le cours d’éveil à la danse (dès 3 ans) est animé par Marie le samedi matin."),
+    ("street", "Oui, nous proposons du street (ados/adultes)."),
+    ("break", "Oui, nous proposons du breakdance dès 8 ans."),
+    ("lyrical", "Oui, nous proposons du lyrical jazz (ados/adultes)."),
+    ("soul", "Oui, nous proposons du soul jazz."),
+    ("sophro", "Oui, nous proposons aussi la sophrologie (Marie OLICHET : 06 69 16 13 50)."),
+    ("barre", "Oui, un cours de barre au sol doux et renforçant est proposé pour les adultes."),
+]
+
+def quick_course_answer(user_text: str) -> str | None:
+    t = norm(user_text)
+    if not t:
+        return None
+
+    # Inscription directe → bulle Wix
+    if fuzzy_has(t, INSCRIPTION_TERMS, threshold=0.40):
+        return "💡 Pour vous inscrire rapidement, cliquez sur **la petite bulle bleue en bas à droite**."
+
+    # Tenues / boutique → Petit Rat immédiat
+    if fuzzy_has(t, CLOTHES_TERMS, threshold=0.40):
+        return f"{PETIT_RAT_BLURB}\n\n[Découvrir les cours]({URLS['cours']})"
+
+    # Cours (mots très courts)
+    for kw, sentence in COURSE_FAST:
+        if fuzzy_has(t, [kw], threshold=0.40):
+            return f"{sentence}\n\n[Voir le planning]({URLS['planning']})"
+
+    return None
+
+# =========================
+# Helpers sortie
 # =========================
 def first_clickable_link_only(text: str) -> str:
     links = list(re.finditer(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", text))
@@ -189,7 +221,8 @@ def first_clickable_link_only(text: str) -> str:
     return out
 
 def add_more_prompt(text: str) -> str:
-    if re.search(r"en savoir plus\s*\?", text, re.I): return text
+    if re.search(r"en savoir plus\s*\?", text, re.I):
+        return text
     return f"{text}\n\nSouhaitez-vous en savoir plus ?"
 
 def add_petit_rat_if_relevant(text: str, user_text: str) -> str:
@@ -228,6 +261,7 @@ def extract_user_text(payload: dict) -> str:
     return ""
 
 def call_model(user_text: str) -> str:
+    # openai==0.28
     resp = openai.ChatCompletion.create(
         model=MODEL_ID,
         temperature=0.35,
@@ -251,26 +285,31 @@ def chat():
         q = int(session.get("q_count", 0)) + 1
         session["q_count"] = q
 
-        reply = call_model(user_text)
-        reply = remove_ai_meta(reply)
+        # 0) Réponse rapide sur mots courts (ex: "jazz")
+        reply = quick_course_answer(user_text)
+        if reply is None:
+            # 1) Réponse modèle
+            reply = call_model(user_text)
+            reply = remove_ai_meta(reply)
 
-        # 1) Petit Rat (détection floue, même avec fautes)
+        # 2) Petit Rat si on parle tenues/chaussures/boutique
         reply = add_petit_rat_if_relevant(reply, user_text)
 
-        # 2) Lien contextuel (1 seul max)
-        anchor_url = choose_link(user_text)
-        if anchor_url and not re.search(r"\]\(https?://", reply):
-            anchor, url = anchor_url
-            reply = f"{reply}\n\n[{anchor}]({url})"
+        # 3) Lien contextuel (si aucun lien et intention détectée)
+        if not re.search(r"\]\(https?://", reply):
+            anchor_url = choose_link(user_text)
+            if anchor_url:
+                anchor, url = anchor_url
+                reply = f"{reply}\n\n[{anchor}]({url})"
+
+        # 4) Un seul lien max
         reply = first_clickable_link_only(reply)
 
-        # 3) “En savoir plus ?”
+        # 5) “En savoir plus ?”
         reply = add_more_prompt(reply)
 
-        # 4) Inscription (bulle bleue Wix)
-        #    - forcer si l’utilisateur écrit "inscription / s'inscrire / oui / ok / d'accord"
+        # 6) Bulle d’inscription Wix
         reply = bulle_cta(reply, user_text, force=fuzzy_has(user_text, INSCRIPTION_TERMS))
-        #    - rappel automatique toutes les 2 questions
         if q % 2 == 0:
             reply = bulle_cta(reply, user_text, force=True)
 
