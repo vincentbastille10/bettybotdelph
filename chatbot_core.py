@@ -1,40 +1,31 @@
 import os
-from flask import Flask, request, jsonify
-from openai import OpenAI
+import openai
+from dotenv import load_dotenv
 
-# Création du client OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Charger les variables d'environnement (.env)
+load_dotenv()
 
-# Choix du modèle : soit variable d'environnement, soit par défaut gpt-4o-mini
-MODEL_ID = os.getenv("MODEL_ID", "gpt-4o-mini")
+# Configurer la clé API
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Création de l'app Flask
-app = Flask(__name__)
-
-@app.route("/chat", methods=["POST"])
-def chat():
+def ask_betty(prompt: str) -> str:
+    """
+    Envoie une requête au modèle GPT et renvoie la réponse texte.
+    Compatible avec openai==0.28
+    """
     try:
-        data = request.get_json()
-        user_message = data.get("message", "")
-
-        if not user_message:
-            return jsonify({"error": "Aucun message reçu"}), 400
-
-        # Requête au modèle OpenAI
-        response = client.chat.completions.create(
-            model=MODEL_ID,
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # ou "gpt-4" si dispo sur ton compte
             messages=[
-                {"role": "system", "content": "Tu es Betty, une assistante gentille et serviable."},
-                {"role": "user", "content": user_message}
-            ]
+                {"role": "system", "content": "Tu es Betty, une assistante gentille et efficace."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.7
         )
 
-        bot_reply = response.choices[0].message.content
-        return jsonify({"reply": bot_reply})
+        # Récupérer uniquement le texte de la réponse
+        return response["choices"][0]["message"]["content"].strip()
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+        return f"❌ Erreur dans BettyBot : {str(e)}"
