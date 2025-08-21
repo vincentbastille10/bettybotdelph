@@ -13,7 +13,6 @@
       align-items: center;
       padding: 20px;
     }
-
     .chatbox {
       width: 100%;
       max-width: 500px;
@@ -22,73 +21,22 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.1);
       padding: 20px;
     }
-
-    .message {
-      margin-bottom: 15px;
-    }
-
-    .user, .bot {
-      padding: 12px;
-      border-radius: 12px;
-    }
-
-    .user {
-      background: #e0f7fa;
-      text-align: right;
-    }
-
-    .bot {
-      background: #f3e5f5;
-      text-align: left;
-    }
-
-    .input-container {
-      display: flex;
-      margin-top: 15px;
-    }
-
+    .message { margin-bottom: 15px; }
+    .user, .bot { padding: 12px; border-radius: 12px; white-space: pre-wrap; }
+    .user { background: #e0f7fa; text-align: right; }
+    .bot  { background: #f3e5f5; text-align: left; }
+    .input-container { display: flex; margin-top: 15px; width: 100%; max-width: 500px; }
     input[type="text"] {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 12px;
-      font-size: 1em;
+      flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 12px; font-size: 1em;
     }
-
     button {
-      background: #ff69b4;
-      color: white;
-      border: none;
-      padding: 10px 16px;
-      margin-left: 10px;
-      border-radius: 12px;
-      cursor: pointer;
+      background: #ff69b4; color: white; border: none; padding: 10px 16px;
+      margin-left: 10px; border-radius: 12px; cursor: pointer;
     }
-
-    #avatar {
-      width: 80px;
-      height: auto;
-      margin-bottom: 10px;
-    }
-
-    #thinking {
-      display: none;
-      font-style: italic;
-      color: #999;
-      margin-top: 10px;
-    }
-
-    @keyframes dots {
-      0% { content: ""; }
-      33% { content: "."; }
-      66% { content: ".."; }
-      100% { content: "..."; }
-    }
-
-    .dots::after {
-      content: "...";
-      animation: dots 1.2s infinite steps(3, end);
-    }
+    #avatar { width: 80px; height: auto; margin-bottom: 10px; }
+    #thinking { display: none; font-style: italic; color: #999; margin-top: 10px; }
+    @keyframes dots { 0%{content:""} 33%{content:"."} 66%{content:".."} 100%{content:"..."} }
+    .dots::after { content:"..."; animation: dots 1.2s infinite steps(3,end); }
   </style>
 </head>
 <body>
@@ -102,49 +50,64 @@
   </div>
 
   <div class="input-container">
-    <input type="text" id="user-input" placeholder="Écrivez votre message ici...">
-    <button onclick="sendMessage()">Envoyer</button>
+    <input type="text" id="user-input" placeholder="Écrivez votre message ici..." autocomplete="off">
+    <button id="send-btn">Envoyer</button>
   </div>
 
   <div id="thinking">Betty réfléchit <span class="dots"></span></div>
 
   <script>
+    const chatbox = document.getElementById("chatbox");
+    const input   = document.getElementById("user-input");
+    const sendBtn = document.getElementById("send-btn");
+    const thinking = document.getElementById("thinking");
+
     function appendMessage(text, sender) {
       const msg = document.createElement("div");
       msg.className = `message ${sender}`;
       msg.textContent = text;
-      document.getElementById("chatbox").appendChild(msg);
+      chatbox.appendChild(msg);
       msg.scrollIntoView({ behavior: "smooth" });
+      return msg;
     }
 
     async function sendMessage() {
-      const input = document.getElementById("user-input");
       const text = input.value.trim();
       if (!text) return;
 
       appendMessage(text, "user");
       input.value = "";
-      document.getElementById("thinking").style.display = "block";
+      const wait = appendMessage("…", "bot");
+      thinking.style.display = "block";
 
       try {
         const res = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: text })
+          // ⬇⬇ IMPORTANT : l’API attend la clé "message"
+          body: JSON.stringify({ message: text })
         });
 
         const data = await res.json();
-        document.getElementById("thinking").style.display = "none";
-        appendMessage(data.response, "bot");
+        thinking.style.display = "none";
+        wait.remove();
+
+        if (data.reply) {
+          appendMessage(data.reply, "bot");
+        } else if (data.error) {
+          appendMessage("Oups : " + data.error, "bot");
+        } else {
+          appendMessage("Réponse inattendue du serveur.", "bot");
+        }
       } catch (err) {
-        document.getElementById("thinking").style.display = "none";
+        thinking.style.display = "none";
+        wait.remove();
         appendMessage("Désolée, je ne peux pas répondre pour le moment 😔", "bot");
       }
     }
 
-    document.getElementById("user-input").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") sendMessage();
-    });
+    sendBtn.addEventListener("click", sendMessage);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
   </script>
 
 </body>
