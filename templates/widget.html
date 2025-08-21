@@ -26,28 +26,23 @@
       display:flex; flex-direction:column; align-items:center;
       padding:28px 16px 120px;
     }
-    .wrap{
-      width:100%; max-width:900px;
-      display:flex; justify-content:center;
-    }
+    .wrap{ width:100%; max-width:900px; display:flex; justify-content:center; }
     .card{
-      width:100%; max-width:680px;
-      background:var(--card); border-radius:var(--radius);
+      width:100%; max-width:680px; background:var(--card); border-radius:var(--radius);
       box-shadow:var(--shadow); padding:22px;
     }
-    .hero{
-      display:flex; align-items:center; gap:12px; margin-bottom:10px;
-    }
-    .hero img{width:80px; height:auto}
+    .hero{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+    .hero img{ width:80px; height:auto }
     .title{
       background:var(--bot); border-radius:16px; padding:16px; font-size:18px; font-weight:600;
     }
-    .chat{display:flex; flex-direction:column; gap:12px; margin:14px 0 16px; max-height:60vh; overflow:auto; padding-right:4px}
-    .msg{padding:12px 14px; border-radius:14px; max-width:85%; white-space:pre-wrap; word-wrap:break-word}
-    .bot{background:var(--bot); align-self:flex-start}
-    .user{background:var(--user); align-self:flex-end; text-align:right}
-    .typing{opacity:.7; font-style:italic}
-    .row{display:flex; gap:10px}
+    .chat{ display:flex; flex-direction:column; gap:12px; margin:14px 0 16px; max-height:60vh; overflow:auto; padding-right:4px }
+    .msg{ padding:12px 14px; border-radius:14px; max-width:85%; white-space:pre-wrap; word-wrap:break-word }
+    .msg a{ color:#0a58ca; text-decoration:underline; }
+    .bot{ background:var(--bot); align-self:flex-start }
+    .user{ background:var(--user); align-self:flex-end; text-align:right }
+    .typing{ opacity:.7; font-style:italic }
+    .row{ display:flex; gap:10px }
     .row input{
       flex:1; background:#fff; border:1px solid #e4e4e7; border-radius:12px; padding:14px 12px; font-size:16px;
       outline:none; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;
@@ -56,27 +51,23 @@
       background:var(--pink); color:#fff; border:0; border-radius:12px; padding:0 18px; min-width:110px;
       font-weight:600; cursor:pointer; transition:transform .05s ease;
     }
-    .row button:active{transform:translateY(1px)}
+    .row button:active{ transform:translateY(1px) }
     /* bulle bleue d'inscription */
     .cta{
-      position:fixed; right:18px; bottom:18px; z-index:50;
-      display:flex; align-items:center; gap:10px;
+      position:fixed; right:18px; bottom:18px; z-index:50; display:flex; align-items:center; gap:10px;
     }
     .cta a{
-      display:inline-flex; align-items:center; justify-content:center;
-      width:56px; height:56px; border-radius:999px; background:var(--brand); color:#fff;
-      text-decoration:none; box-shadow:0 8px 20px rgba(59,130,246,.35); font-size:26px;
+      display:inline-flex; align-items:center; justify-content:center; width:56px; height:56px; border-radius:999px;
+      background:var(--brand); color:#fff; text-decoration:none; box-shadow:0 8px 20px rgba(59,130,246,.35); font-size:26px;
     }
     .cta .hint{
-      background:#fff; border:1px solid #e6e8ef; color:#0f172a;
-      padding:10px 12px; border-radius:12px; box-shadow:var(--shadow); font-size:14px;
+      background:#fff; border:1px solid #e6e8ef; color:#0f172a; padding:10px 12px; border-radius:12px; box-shadow:var(--shadow); font-size:14px;
     }
-    /* petits écrans */
     @media (max-width:520px){
-      .card{padding:16px}
-      .title{font-size:16px}
-      .row input{padding:12px}
-      .row button{min-width:92px}
+      .card{ padding:16px }
+      .title{ font-size:16px }
+      .row input{ padding:12px }
+      .row button{ min-width:92px }
     }
   </style>
 </head>
@@ -112,7 +103,6 @@
     const input = document.getElementById('msg');
     const send  = document.getElementById('send');
     const ctaHint = document.getElementById('cta-hint');
-    const ctaLink = document.getElementById('cta-link');
 
     // message d’accueil dans le flux
     addMsg("Que puis-je faire pour vous ?", "bot");
@@ -120,9 +110,16 @@
     function addMsg(text, who){
       const div = document.createElement('div');
       div.className = `msg ${who}`;
-      // les réponses de Betty peuvent contenir des liens HTML
-      if (who === 'bot') div.innerHTML = text;
-      else div.textContent = text;
+
+      if (who === 'bot') {
+        // transforme [texte](url) -> <a href="url">texte</a>
+        const html = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        div.innerHTML = html;   // ✅ liens cliquables
+      } else {
+        div.textContent = text; // utilisateur = texte brut
+      }
+
       chat.appendChild(div);
       chat.scrollTop = chat.scrollHeight;
       return div;
@@ -148,19 +145,15 @@
         const r = await fetch("/chat", {
           method: "POST",
           headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ message: text }) // clé attendue par l’API
+          body: JSON.stringify({ message: text })
         });
         const j = await r.json();
         setTyping(false);
 
         if (j.reply){
           addMsg(j.reply, "bot");
-          // si la réponse contient un lien, on rend visible une courte aide côté bulle
-          if (j.reply.includes("http")) {
-            ctaHint.textContent = "Lien utile envoyé ↑";
-          } else {
-            ctaHint.textContent = "Besoin de vous inscrire ?";
-          }
+          // petit signal côté bulle bleue
+          ctaHint.textContent = j.reply.includes("http") ? "Lien utile envoyé ↑" : "Besoin de vous inscrire ?";
         } else {
           addMsg("Oups : " + (j.error || "erreur inconnue"), "bot");
         }
@@ -172,8 +165,6 @@
 
     send.addEventListener('click', ask);
     input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') ask(); });
-
-    // accessibilité : focus input au chargement
     window.addEventListener('load', ()=> input.focus());
   </script>
 </body>
