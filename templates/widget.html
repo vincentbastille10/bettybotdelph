@@ -11,9 +11,7 @@
       --user:#e0f7fa;
       --card:#ffffff;
       --text:#1b1b1b;
-      --brand:#3b82f6; /* bleu bulle */
       --pink:#ff69b4;
-      --muted:#8a8a8a;
       --shadow:0 10px 30px rgba(0,0,0,.08);
       --radius:20px;
     }
@@ -24,7 +22,7 @@
       color:var(--text);
       font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
       display:flex; flex-direction:column; align-items:center;
-      padding:28px 16px 120px;
+      padding:28px 16px 28px;
     }
     .wrap{ width:100%; max-width:900px; display:flex; justify-content:center; }
     .card{
@@ -52,17 +50,6 @@
       font-weight:600; cursor:pointer; transition:transform .05s ease;
     }
     .row button:active{ transform:translateY(1px) }
-    /* bulle bleue d'inscription */
-    .cta{
-      position:fixed; right:18px; bottom:18px; z-index:50; display:flex; align-items:center; gap:10px;
-    }
-    .cta a{
-      display:inline-flex; align-items:center; justify-content:center; width:56px; height:56px; border-radius:999px;
-      background:var(--brand); color:#fff; text-decoration:none; box-shadow:0 8px 20px rgba(59,130,246,.35); font-size:26px;
-    }
-    .cta .hint{
-      background:#fff; border:1px solid #e6e8ef; color:#0f172a; padding:10px 12px; border-radius:12px; box-shadow:var(--shadow); font-size:14px;
-    }
     @media (max-width:520px){
       .card{ padding:16px }
       .title{ font-size:16px }
@@ -92,17 +79,10 @@
     </div>
   </div>
 
-  <!-- Bulle bleue d'inscription -->
-  <div class="cta" aria-live="polite">
-    <div class="hint" id="cta-hint">Besoin de vous inscrire ?</div>
-    <a id="cta-link" href="https://www.dansedelphineletort.com/" target="_blank" aria-label="S’inscrire (bulle bleue)">➜</a>
-  </div>
-
   <script>
-    const chat = document.getElementById('chat');
+    const chat  = document.getElementById('chat');
     const input = document.getElementById('msg');
     const send  = document.getElementById('send');
-    const ctaHint = document.getElementById('cta-hint');
 
     // message d’accueil dans le flux
     addMsg("Que puis-je faire pour vous ?", "bot");
@@ -112,12 +92,12 @@
       div.className = `msg ${who}`;
 
       if (who === 'bot') {
-        // transforme [texte](url) -> <a href="url">texte</a>
+        // transforme [texte](url) -> <a href="url">texte</a> pour des liens cliquables
         const html = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
           '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-        div.innerHTML = html;   // ✅ liens cliquables
+        div.innerHTML = html;
       } else {
-        div.textContent = text; // utilisateur = texte brut
+        div.textContent = text;
       }
 
       chat.appendChild(div);
@@ -152,8 +132,6 @@
 
         if (j.reply){
           addMsg(j.reply, "bot");
-          // petit signal côté bulle bleue
-          ctaHint.textContent = j.reply.includes("http") ? "Lien utile envoyé ↑" : "Besoin de vous inscrire ?";
         } else {
           addMsg("Oups : " + (j.error || "erreur inconnue"), "bot");
         }
