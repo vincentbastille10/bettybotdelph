@@ -144,7 +144,18 @@ def must_attach_offer(msg_user: str, draft_answer: str) -> bool:
 def get_bot_response(user_input: str) -> str:
     """Renvoie une réponse depuis la FAQ, sinon via OpenAI, avec règles métier."""
 
-    # 0) Règle rapide : spectacle/gala
+    # A) Règle spécifique K‑pop (avant toute autre)
+    mots_cles_kpop = ["kpop", "k-pop", "k pop", "kpop crew", "k kick"]
+    if any(m in (user_input or "").lower() for m in mots_cles_kpop):
+        return (
+            "Nouveau groupe K‑pop : **K‑Kick** ! Animé par **Jules Olichet**, "
+            "les répétitions durent 2 heures un samedi sur deux. "
+            "La K‑pop mélange pop, hip‑hop, R&B et électro ; chaque morceau a sa "
+            "chorégraphie dédiée. L’année de test est offerte aux élèves déjà inscrits en street. "
+            "Inscriptions le 8 septembre à l’accueil (places limitées)."
+        )
+
+    # B) Règle rapide : spectacle/gala
     mots_cles_spectacle = ["spectacle", "gala", "représentation", "scène", "show", "représente"]
     if any(mot in (user_input or "").lower() for mot in mots_cles_spectacle):
         return (
@@ -152,7 +163,7 @@ def get_bot_response(user_input: str) -> str:
             "[Acheter une place](https://www.helloasso.com/associations/steps/evenements/gala-2025)"
         )
 
-    # 1) Promo septembre — réponse proactive si pertinent
+    # C) Promo septembre — réponse proactive si pertinent
     proactive_offer = ""
     if promo_septembre_active() and wants_offer(user_input):
         details = OFFER_SNIPPET or (
@@ -162,7 +173,7 @@ def get_bot_response(user_input: str) -> str:
         )
         proactive_offer = f"{PROMO_MSG}\n\n{details}"
 
-    # 2) FAQ locale si pas de proactive_offer
+    # D) FAQ locale si pas de proactive_offer
     if not proactive_offer:
         local = chercher_reponse_locale(user_input)
         if local:
@@ -170,10 +181,10 @@ def get_bot_response(user_input: str) -> str:
                 local += "\n\n" + PROMO_MSG
             return local
 
-    # 3) OpenAI (contexte court + promo en consigne)
+    # E) OpenAI (contexte court + promo en consigne)
     try:
         system_msg = (
-            "Tu es Betty, l’assistante humaine (et non un robot) du Centre de Danse Delphine Letort. "
+            "Tu es Cendrillon, l’assistante humaine (et non un robot) du Centre de Danse Delphine Letort. "
             "Tu réponds avec bienveillance, clarté et douceur. Ne mentionne jamais que tu es une IA.\n"
             "Infos clés :\n"
             "- Delphine Letort (diplômée d'État) enseigne classique (dès 6 ans), street jazz et lyrical jazz.\n"
@@ -217,7 +228,7 @@ def get_bot_response(user_input: str) -> str:
 
         draft = chat_completion["choices"][0]["message"]["content"].strip()
 
-        # 4) Post-traitement : garantir l'annonce de la promo si pertinent
+        # F) Post-traitement : garantir l'annonce de la promo si pertinent
         if promo_septembre_active() and wants_offer(user_input) and PROMO_MSG not in draft:
             draft = PROMO_MSG + "\n\n" + draft
         elif must_attach_offer(user_input, draft):
