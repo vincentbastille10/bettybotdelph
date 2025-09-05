@@ -4,7 +4,7 @@ import os, json, re, textwrap, unicodedata
 import openai
 from flask import Flask, request, jsonify, render_template, session
 from dotenv import load_dotenv
-from datetime import date  # ✅ pour la promo de septembre
+from datetime import date  # pour la promo de septembre
 
 # =========================
 # ENV & Provider (openai==0.28)
@@ -230,26 +230,25 @@ def quick_course_answer(user_text: str) -> str | None:
     t = norm(user_text)
     if not t: return None
 
-    # 🔹 Règle immédiate K-Pop
+    # K-Pop
     if fuzzy_has(t, KPOP_TERMS, threshold=0.40):
-        # Pas de lien ici pour rester dans la règle « 1 lien max » (ajouté plus bas si besoin)
         return KPOP_REPLY
 
-    # 🔹 Inscription directe → bulle Wix
+    # Inscription → bulle Wix
     if fuzzy_has(t, INSCRIPTION_TERMS, threshold=0.40):
         return "💡 Pour vous inscrire rapidement, cliquez sur **la petite bulle bleue en bas à droite**."
 
-    # 🔹 Tenues / boutique → Petit Rat immédiat
+    # Tenues → Petit Rat
     if fuzzy_has(t, CLOTHES_TERMS, threshold=0.40):
         return f"{PETIT_RAT_BLURB}\n\n[Découvrir les cours]({URLS['cours']})"
 
-    # 🔹 Âges clés
+    # Âges clés
     if re.search(r"\b3\s*ans\b", t):
         return "Dès **3 ans**, l’**éveil** à la danse est animé par Marie le samedi matin.\n\n[Voir le planning]({})".format(URLS["planning"])
     if re.search(r"\b6\s*ans\b", t):
         return "Dès **6 ans**, on peut commencer la **danse classique** avec Delphine.\n\n[Voir le planning]({})".format(URLS["planning"])
 
-    # 🔹 Mots très courts (synonymes, fautes courantes)
+    # Mots très courts (synonymes, fautes)
     for kw, sentence in COURSE_FAST:
         if fuzzy_has(t, [kw], threshold=0.40):
             if kw in ("tarifs",):
@@ -271,7 +270,7 @@ def first_clickable_link_only(text: str) -> str:
     links = list(re.finditer(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", text))
     if not links: return text
     out = text[:links[0].end()]
-    idx = links[0].end()]
+    idx = links[0].end()  # ✅ fix: pas de ']' en trop
     for m in links[1:]:
         out += text[idx:m.start()] + m.group(1)  # garde l'ancre, retire l'URL
         idx = m.end()
