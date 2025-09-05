@@ -4,6 +4,7 @@ import os, json, re, textwrap, unicodedata
 import openai
 from flask import Flask, request, jsonify, render_template, session
 from dotenv import load_dotenv
+from datetime import date  # ✅ pour la promo de septembre
 
 # =========================
 # ENV & Provider (openai==0.28)
@@ -169,6 +170,39 @@ def choose_link(user_text: str) -> tuple[str, str] | None:
     return None
 
 # =========================
+# Promo septembre & K-Pop (règles métier)
+# =========================
+def promo_septembre_active() -> bool:
+    return date.today().month == 9
+
+PROMO_MSG = (
+    "**En septembre : 1 cours d’essai gratuit** par personne (places limitées). "
+    "Réservation obligatoire via le lien *Inscription* (ou à l’accueil). "
+    "L’essai n’engage pas ; si vous poursuivez, le règlement intérieur s’applique."
+)
+
+def wants_offer(user_text: str) -> bool:
+    msg = norm(user_text)
+    keywords = [
+        # essai / offre / période
+        "essai", "essayer", "offre", "septembre", "test", "decouvrir", "essayer un cours",
+        "essai gratuit", "cours d essai",
+        # gratuit — toutes variantes utiles
+        "gratuit", "gratuite", "gratuits", "gratuites", "gratuitement", "free",
+        # chemins usuels qui doivent aussi l’afficher
+        "prix", "tarif", "inscription", "s inscrire"
+    ]
+    return fuzzy_has(msg, keywords, threshold=0.40)
+
+KPOP_TERMS = ["kpop", "k-pop", "k pop", "k kick", "kkick", "kpop crew", "groupe kpop"]
+KPOP_REPLY = (
+    "Nouveau groupe K-Pop : **K-Kick** animé par **Jules Olichet**. "
+    "Répétitions de **2 h un samedi sur deux**. "
+    "La K-Pop mixe pop/hip-hop/R&B/électro, chaque morceau ayant sa chorégraphie. "
+    "L’**année de test** est **offerte** aux élèves déjà inscrits en street (places limitées)."
+)
+
+# =========================
 # Réponses rapides (mots très courts & typos)
 # =========================
 COURSE_FAST = [
@@ -196,24 +230,28 @@ def quick_course_answer(user_text: str) -> str | None:
     t = norm(user_text)
     if not t: return None
 
-    # Inscription directe → bulle Wix
+    # 🔹 Règle immédiate K-Pop
+    if fuzzy_has(t, KPOP_TERMS, threshold=0.40):
+        # Pas de lien ici pour rester dans la règle « 1 lien max » (ajouté plus bas si besoin)
+        return KPOP_REPLY
+
+    # 🔹 Inscription directe → bulle Wix
     if fuzzy_has(t, INSCRIPTION_TERMS, threshold=0.40):
         return "💡 Pour vous inscrire rapidement, cliquez sur **la petite bulle bleue en bas à droite**."
 
-    # Tenues / boutique → Petit Rat immédiat
+    # 🔹 Tenues / boutique → Petit Rat immédiat
     if fuzzy_has(t, CLOTHES_TERMS, threshold=0.40):
         return f"{PETIT_RAT_BLURB}\n\n[Découvrir les cours]({URLS['cours']})"
 
-    # Âges clés
+    # 🔹 Âges clés
     if re.search(r"\b3\s*ans\b", t):
         return "Dès **3 ans**, l’**éveil** à la danse est animé par Marie le samedi matin.\n\n[Voir le planning]({})".format(URLS["planning"])
     if re.search(r"\b6\s*ans\b", t):
         return "Dès **6 ans**, on peut commencer la **danse classique** avec Delphine.\n\n[Voir le planning]({})".format(URLS["planning"])
 
-    # Mots très courts (synonymes, fautes courantes)
+    # 🔹 Mots très courts (synonymes, fautes courantes)
     for kw, sentence in COURSE_FAST:
         if fuzzy_has(t, [kw], threshold=0.40):
-            # ancre par défaut pour ces cas
             if kw in ("tarifs",):
                 return f"{sentence}\n\n[Consulter les tarifs]({URLS['tarifs']})"
             if kw in ("planning", "adresse"):
@@ -233,7 +271,7 @@ def first_clickable_link_only(text: str) -> str:
     links = list(re.finditer(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", text))
     if not links: return text
     out = text[:links[0].end()]
-    idx = links[0].end()
+    idx = links[0].end()]
     for m in links[1:]:
         out += text[idx:m.start()] + m.group(1)  # garde l'ancre, retire l'URL
         idx = m.end()
@@ -307,12 +345,25 @@ def chat():
         q = int(session.get("q_count", 0)) + 1
         session["q_count"] = q
 
-        # 0) Réponses rapides (mots courts, typos, synonymes)
+        # 0) Réponses rapides (mots courts, typos, synonymes) — inclut K-Pop
         reply = quick_course_answer(user_text)
+
+        # 0.b) Promo septembre — insertion proactive même si quick_course_answer a répondu
+        if promo_septembre_active() and wants_offer(user_text):
+            if reply:
+                if PROMO_MSG not in reply:
+                    reply = f"{PROMO_MSG}\n\n{reply}"
+            else:
+                reply = PROMO_MSG
+
         if reply is None:
             # 1) Réponse modèle
             reply = call_model(user_text)
             reply = remove_ai_meta(reply)
+
+            # 1.b) Promo septembre — post-traitement si pas déjà présente
+            if promo_septembre_active() and wants_offer(user_text) and PROMO_MSG not in reply:
+                reply = f"{PROMO_MSG}\n\n{reply}"
 
         # 2) Petit Rat si on parle tenues/chaussures/boutique
         reply = add_petit_rat_if_relevant(reply, user_text)
