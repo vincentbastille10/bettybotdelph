@@ -9,10 +9,9 @@ import openai
 from dotenv import load_dotenv
 
 # ----------------------------------------------------------------------
-# Chargement ENV
+# ENV & OpenAI (API v0.28)
 # ----------------------------------------------------------------------
 load_dotenv()
-
 openai.api_key = os.getenv("OPENAI_API_KEY")
 MODEL_ID = os.getenv("MODEL_ID", "gpt-3.5-turbo")
 
@@ -23,8 +22,6 @@ FAQ_PATH = "data/faq_danse.json"
 try:
     with open(FAQ_PATH, "r", encoding="utf-8") as f:
         faq_data = json.load(f)
-except FileNotFoundError:
-    faq_data = []
 except Exception:
     faq_data = []
 
@@ -73,10 +70,8 @@ def extract_offer_snippet(kb_docs: List[Dict[str, str]]) -> str:
     for doc in kb_docs:
         low = doc["text"].lower()
         if any(k in low for k in keys):
-            # On renvoie un extrait raisonnable (max ~900 caractères)
             snippet = doc["text"]
-            # Si le doc contient un titre OFFRE SEPTEMBRE, on découpe depuis là.
-            for marker in ["## OFFRE SEPTEMBRE", "OFFRE SEPTEMBRE", "Offre — Cours d’essai"]:
+            for marker in ["## OFFRE SEPTEMBRE", "OFFRE SEPTEMBRE", "Offre — Cours d’essai", "Offre - Cours d’essai"]:
                 idx = snippet.find(marker)
                 if idx != -1:
                     snippet = snippet[idx:]
@@ -87,10 +82,9 @@ def extract_offer_snippet(kb_docs: List[Dict[str, str]]) -> str:
 OFFER_SNIPPET = extract_offer_snippet(KB_DOCS)
 
 def build_small_context(kb_docs: List[Dict[str, str]], limit_chars: int = 1200) -> str:
-    """Construit un petit contexte concaténé et safe (sans dépasser ~1200 chars)."""
+    """Construit un petit contexte concaténé et safe (~1200 chars)."""
     parts = []
     total = 0
-    # On privilégie le doc unifié s'il existe
     preferred_first = sorted(
         kb_docs,
         key=lambda d: 0 if "reglement+offre" in d["source"].lower() else 1
@@ -122,10 +116,26 @@ PROMO_MSG = (
 )
 
 def wants_offer(user_msg: str) -> bool:
+    """Détection large des intentions essai/offre/gratuit."""
     msg = (user_msg or "").lower()
     return any(k in msg for k in [
-        "essai", "essayer", "offre", "septembre", "test", "découvrir", "essayer un cours",
-        "essai gratuit", "cours d'essai", "cours d’essai"
+        # essai / offre / période
+        "essai", "essayer", "offre", "septembre", "test", "découvrir",
+        "essayer un cours", "essai gratuit", "cours d'essai", "cours d’essai",
+        # gratuit
+        "gratuit", "gratuite", "free"
+    ])
+
+def must_attach_offer(msg_user: str, draft_answer: str) -> bool:
+    """Faut-il ajouter la promo à la réponse ?"""
+    if not promo_septembre_active():
+        return False
+    if PROMO_MSG in (draft_answer or ""):
+        return False
+    msg = (msg_user or "").lower()
+    return any(k in msg for k in [
+        "prix","tarif","inscription","essai","septembre","offre","cours","test",
+        "gratuit","gratuite","free"
     ])
 
 # ----------------------------------------------------------------------
@@ -145,7 +155,6 @@ def get_bot_response(user_input: str) -> str:
     # 1) Promo septembre — réponse proactive si pertinent
     proactive_offer = ""
     if promo_septembre_active() and wants_offer(user_input):
-        # On construit un petit bloc clair (prioritaire sur FAQ)
         details = OFFER_SNIPPET or (
             "Du 1er au 30 septembre : 1 cours d’essai gratuit par personne, sur le cours de votre choix "
             "(dans la limite des places). Réservation obligatoire en ligne/WhatsApp. "
@@ -157,12 +166,11 @@ def get_bot_response(user_input: str) -> str:
     if not proactive_offer:
         local = chercher_reponse_locale(user_input)
         if local:
-            # On peut greffer la promo en post-scriptum si on parle d'inscription/prix/cours
-            if promo_septembre_active() and any(k in (user_input or '').lower() for k in ["prix","tarif","inscription","cours","septembre","offre","essai"]):
+            if promo_septembre_active() and must_attach_offer(user_input, local):
                 local += "\n\n" + PROMO_MSG
             return local
 
-    # 3) OpenAI (avec contexte court + promo en consigne)
+    # 3) OpenAI (contexte court + promo en consigne)
     try:
         system_msg = (
             "Tu es Cendrillon, l’assistante humaine (et non un robot) du Centre de Danse Delphine Letort. "
@@ -195,14 +203,9 @@ def get_bot_response(user_input: str) -> str:
                 + SMALL_CONTEXT
             )
 
-        messages = [
-            {"role": "system", "content": system_msg + context_block},
-        ]
-
+        messages = [{"role": "system", "content": system_msg + context_block}]
         if proactive_offer:
-            # On “prime” l’assistant avec l’info offre avant le message utilisateur
             messages.append({"role": "system", "content": "Rappelle l'offre d'essai gratuite en septembre si pertinent."})
-
         messages.append({"role": "user", "content": user_input or ""})
 
         chat_completion = openai.ChatCompletion.create(
@@ -214,20 +217,12 @@ def get_bot_response(user_input: str) -> str:
 
         draft = chat_completion["choices"][0]["message"]["content"].strip()
 
-        # 4) Post-traitement : injecter clairement la promo si nécessaire
-        def must_attach_offer(msg_user: str, draft_answer: str) -> bool:
-            if not promo_septembre_active():
-                return False
-            if PROMO_MSG in draft_answer:
-                return False
-            return any(k in (msg_user or "").lower() for k in [
-                "prix","tarif","inscription","essai","septembre","offre","cours","test"
-            ])
-
-        if must_attach_offer(user_input, draft):
+        # 4) Post-traitement : garantir l'annonce de la promo si pertinent
+        if promo_septembre_active() and wants_offer(user_input) and PROMO_MSG not in draft:
+            draft = PROMO_MSG + "\n\n" + draft
+        elif must_attach_offer(user_input, draft):
             draft += "\n\n" + PROMO_MSG
 
-        # Si on avait un bloc proactif très clair, on le préfixe (sans doublonner).
         if proactive_offer and proactive_offer not in draft:
             draft = proactive_offer + "\n\n" + draft
 
