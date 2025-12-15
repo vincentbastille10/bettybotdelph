@@ -2,8 +2,11 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- viewport corrigé pour iOS / Google Sites -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
   <title>Betty – Chatbot Danse</title>
+
   <style>
     :root{
       --rose:#f3d9ee;
@@ -14,6 +17,10 @@
       --shadow:0 10px 25px rgba(0,0,0,.08);
       --radius:22px;
     }
+
+    /* 🔑 FIX GLOBAL */
+    *{ box-sizing:border-box; }
+
     html,body{
       height:100%;
       margin:0;
@@ -21,37 +28,41 @@
       color:var(--txt);
       background:#fff6fb;
     }
+
     .wrap{
       max-width: 920px;
       margin: 24px auto;
       padding: 16px;
     }
 
-    /* --- Header avec avatar au-dessus --- */
+    /* --- Header --- */
     .header{
       display:flex;
-      flex-direction:column;      /* avatar au-dessus */
+      flex-direction:column;
       align-items:center;
       gap:12px;
       margin-bottom:18px;
     }
+
     .avatar{
-      width:90px; height:auto;
+      width:90px;
+      height:auto;
       filter: drop-shadow(var(--shadow));
       user-select:none;
       -webkit-user-drag:none;
     }
+
     .intro{
       background:var(--rose);
       border-radius:var(--radius);
       padding:18px 20px;
       box-shadow: var(--shadow);
-      max-width: 100%;
+      width:100%;
       line-height:1.4;
       font-size: clamp(16px, 1.8vw, 22px);
     }
 
-    /* --- Zone messages --- */
+    /* --- Messages --- */
     .chatbox{
       background:#fff;
       border-radius:calc(var(--radius) + 6px);
@@ -61,7 +72,9 @@
       max-height: 55vh;
       overflow:auto;
     }
-    .msg{margin:10px 0; display:flex;}
+
+    .msg{ margin:10px 0; display:flex; }
+
     .msg .bubble{
       padding:14px 16px;
       border-radius:16px;
@@ -70,29 +83,64 @@
       word-wrap: break-word;
       white-space: pre-wrap;
     }
+
     .bot .bubble{ background:var(--rose-2); }
-    .user{ justify-content: flex-end; }
+
+    .user{ justify-content:flex-end; }
+
     .user .bubble{ background:var(--bleu); }
 
-    .thinking{ display:none; font-style: italic; color:#7a7a7a; margin-top:6px; }
+    .thinking{
+      display:none;
+      font-style: italic;
+      color:#7a7a7a;
+      margin-top:6px;
+    }
     .thinking.on{ display:block; }
 
-    /* --- Entrée --- */
+    /* --- INPUT + BOUTON (FIX MOBILE) --- */
     .input-row{
-      display:flex; gap:10px; margin-top:14px;
-      position: sticky; bottom: 0; padding-top: 8px; background: #fff6fb;
+      display:flex;
+      gap:10px;
+      margin-top:14px;
+
+      position: sticky;
+      bottom: 0;
+
+      width:100%;
+      padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+      background: #fff6fb;
     }
+
     .input{
-      flex:1; border:1px solid #e6e6ea; border-radius:14px; padding:14px 16px;
-      font-size:16px; outline:none; background:#fff;
+      flex:1;
+      min-width:0;            /* 🔥 clé anti-bouton caché */
+      border:1px solid #e6e6ea;
+      border-radius:14px;
+      padding:14px 16px;
+      font-size:16px;
+      outline:none;
+      background:#fff;
     }
+
     .btn{
-      border:0; background:var(--btn); color:#fff; padding:14px 20px;
-      border-radius:14px; font-weight:600; cursor:pointer;
+      border:0;
+      background:var(--btn);
+      color:#fff;
+      padding:14px 20px;
+      border-radius:14px;
+      font-weight:600;
+      cursor:pointer;
+      white-space:nowrap;     /* 🔒 empêche la casse du bouton */
       transition: transform .05s ease-in-out, opacity .2s;
     }
+
     .btn:active{ transform: translateY(1px); }
-    .msg a{ color:#5a3abf; text-decoration: underline; }
+
+    .msg a{
+      color:#5a3abf;
+      text-decoration: underline;
+    }
 
     @media (max-width: 520px){
       .avatar{ width:72px; }
@@ -100,10 +148,11 @@
     }
   </style>
 </head>
+
 <body>
   <div class="wrap">
 
-    <!-- Avatar AU-DESSUS -->
+    <!-- Header -->
     <div class="header">
       <img class="avatar" src="/static/images/betty_pirouette.gif" alt="Betty fait une pirouette !" />
       <div class="intro">
@@ -113,12 +162,10 @@
     </div>
 
     <!-- Messages -->
-    <div id="chat" class="chatbox" aria-live="polite" aria-label="Conversation">
-      <!-- Les nouveaux messages s’ajoutent ici -->
-    </div>
+    <div id="chat" class="chatbox" aria-live="polite" aria-label="Conversation"></div>
     <div id="thinking" class="thinking">Betty réfléchit…</div>
 
-    <!-- Saisie -->
+    <!-- Input -->
     <div class="input-row">
       <input id="inp" class="input" type="text" placeholder="Écrivez votre message ici…" />
       <button class="btn" id="send">Envoyer</button>
@@ -142,7 +189,6 @@
       chat.scrollTop = chat.scrollHeight;
     }
 
-    // mini conversion Markdown -> liens cliquables (seulement [texte](url))
     function mdToHtml(md){
       return md.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
         (_m, text, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`);
@@ -173,9 +219,8 @@
     }
 
     btn.addEventListener('click', send);
-    inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter') send(); });
+    inp.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') send(); });
 
-    // focus auto pratique
     window.setTimeout(()=>inp.focus(), 300);
   </script>
 </body>
